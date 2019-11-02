@@ -1,0 +1,64 @@
+---
+- hosts: localhost
+  tasks:
+    - name: "install packages"
+      apt:
+        state: present
+        name:
+          - isc-dhcp-server
+    - name: "enable services"
+      systemd:
+        state: started
+        enabled: yes
+        name: "{{ item }}"
+      with_items:
+        - systemd-networkd
+        - wpa_supplicant@wlan0
+        - systemd-timesyncd
+    - name: "install wireless networkd config"
+      copy:
+        src: networkd/wireless.network
+        dest: /etc/systemd/network/wireless.network
+        owner: root
+        group: root
+        mode: 0644
+    - name: "install wired networkd config"
+      copy:
+        src: networkd/wired.network
+        dest: /etc/systemd/network/wired.network
+        owner: root
+        group: root
+        mode: 0644
+    - name: "disable password login"
+      lineinfile:
+        name: /etc/ssh/sshd_config
+        state: present
+        regexp: '^PasswordAuthentication no'
+        line: 'PasswordAuthentication no'
+
+    - name: "isc-dhcp set eth0"
+      lineinfile:
+        name: /etc/default/isc-dhcp-server
+        regexp: '^INTERFACESv4=.*'
+        line: 'INTERFACESv4="eth0"'
+
+    - name: "install isc dhcp file"
+      copy:
+        src: dhcpd.conf
+        dest: /etc/dhcp/dhcpd.conf
+        owner: root
+        group: root
+        mode: 0644
+    - name: setup routing
+      sysctl:
+        name: net.ipv4.ip_forward
+        value: 1
+    - name: "/var/lib/dhcp as tmpfs"
+      mount:
+        name: /var/lib/dhcp
+        src: tmpfs
+        fstype: tmpfs
+        opts: nodev,nosuid
+        state: present
+
+
